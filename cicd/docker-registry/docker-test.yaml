@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: docker-test
+  name: docker-test
+spec:
+  containers:
+  - image: docker
+    name: docker-test

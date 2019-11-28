@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: ci
+  labels:
+    run: docker-registry-fe
+  name: docker-registry-fe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: docker-registry-fe
+  template:
+    metadata:
+      labels:
+        run: docker-registry-fe
+    spec:
+      containers:
+      - image: konradkleine/docker-registry-frontend:v2
+        name: docker-registry-fe
+        env:
+          - name: ENV_DOCKER_REGISTRY_HOST
+            value: "docker-registry.ci"
+          - name: ENV_DOCKER_REGISTRY_PORT
+            value: "5000"

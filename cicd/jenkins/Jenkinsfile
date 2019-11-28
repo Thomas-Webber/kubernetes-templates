@@ -1,0 +1,77 @@
+def project = 'REPLACE_WITH_YOUR_PROJECT_ID'
+def appName = 'gceme'
+def feSvcName = "${appName}-frontend"
+
+// Docker environment
+def dockerUser = "user"
+def dockerRepo = "${appName}"
+def dockerTag  = "${env.BRANCH_NAME}.${env.BUILD_NUMBER}"
+def imageTag = "docker.io/${dockerUser}/${dockerRepo}:${dockerTag}"
+
+pipeline {
+  agent {
+    kubernetes {
+      label 'sample-app'
+      defaultContainer 'jnlp'
+      yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+labels:
+  component: ci
+namespace: ci
+spec:
+  serviceAccountName: cd-jenkins
+  containers:
+  - name: golang
+    image: golang:1.13.4
+    command:
+    - cat
+    tty: true
+  - name: kubectl
+    image: gcr.io/cloud-builders/kubectl
+    command:
+    - cat
+    tty: true
+  - name: docker
+    image: docker:19.03.4
+    command:
+    - cat
+    tty: true
+    env:
+    - name: DOCKER_PASS
+      valueFrom:
+        secretKeyRef:
+          name: dockerhub
+          key: password
+"""
+}
+  }
+  stages {
+    stage('Build and push docker image') {
+      steps {
+        container('docker') {
+          sh "docker login -u xelit -p `echo $DOCKER_PASS | base64 -d | tr -d '\n'`"
+          sh "docker builds -t ${imageTag} ."
+          sh "docker push ${imageTag}"
+        }
+      }
+    }
+    stage('Deploy Production') {
+      when { branch 'master' }
+      steps {
+        container('kubectl') {
+          sh("kubectl -n production set image ")
+        }
+      }
+    }
+    stage('Deploy Dev') {
+      when { branch 'develop' }
+      steps {
+        container('kubectl') {
+          sh("kubectl -n=production set image")
+        }
+      }
+    }
+  }
+}
