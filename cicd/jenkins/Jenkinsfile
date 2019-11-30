@@ -1,17 +1,12 @@
-def project = 'REPLACE_WITH_YOUR_PROJECT_ID'
 def appName = 'gceme'
-def feSvcName = "${appName}-frontend"
-
-// Docker environment
-def dockerUser = "user"
 def dockerRepo = "${appName}"
 def dockerTag  = "${env.BRANCH_NAME}.${env.BUILD_NUMBER}"
-def imageTag = "docker.io/${dockerUser}/${dockerRepo}:${dockerTag}"
+def dockerImage = "docker.io/xelit/${dockerRepo}:${dockerTag}"
 
 pipeline {
   agent {
     kubernetes {
-      label 'sample-app'
+      label 'jenkins-worker'
       defaultContainer 'jnlp'
       yaml """
 apiVersion: v1
@@ -23,37 +18,34 @@ namespace: ci
 spec:
   serviceAccountName: cd-jenkins
   containers:
-  - name: golang
-    image: golang:1.13.4
-    command:
-    - cat
-    tty: true
   - name: kubectl
     image: gcr.io/cloud-builders/kubectl
     command:
     - cat
     tty: true
-  - name: docker
-    image: docker:19.03.4
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:debug
     command:
-    - cat
+    - /busybox/cat
     tty: true
-    env:
-    - name: DOCKER_PASS
-      valueFrom:
-        secretKeyRef:
-          name: dockerhub
-          key: password
+  volumeMounts:
+  - name: kaniko-secret
+    mountPath: /kaniko/.docker
+  volumes:
+  - name: kaniko-secret
+    secret:
+      secretName: regcred
+      items:
+      - key: .dockerconfigjson
+        path: config.json
 """
 }
   }
   stages {
-    stage('Build and push docker image') {
+    stage('Build') {
       steps {
-        container('docker') {
-          sh "docker login -u xelit -p `echo $DOCKER_PASS | base64 -d | tr -d '\n'`"
-          sh "docker builds -t ${imageTag} ."
-          sh "docker push ${imageTag}"
+        container('kaniko') {
+          sh "/kaniko/executor -f `pwd`/Dockerfile -c `pwd` --insecure --skip-tls-verify --cache=true --destination=${dockerImage}"
         }
       }
     }
